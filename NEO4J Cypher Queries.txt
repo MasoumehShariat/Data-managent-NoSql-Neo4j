@@ -1,0 +1,183 @@
+Q1. Return the youngest male victims in each descent. Young men(less than 30 and more than 18
+years old).
+NEO4J Cypher Query
+
+match (v:Victim)
+where (v.victimAge>18 and v.victimAge<30) and
+v.victimSex="M"
+return v.victimDescent as victimdescent ,v.victimSex as
+victimsex,
+count(v.victimAge) as anumber_of_young_victim
+order by count (v.victimAge) desc
+create index on :victim(victimage)
+create index index_victage for (v:victim) on (v.victimage)
+drop index index_victage
+My SQL Query
+SELECT VictimDescent, VictimSex,count(VictimAge) as
+`numbers of young victim`
+FROM victim FORCE INDEX (idx_age)
+WHERE (VictimAge<30 AND VictimAge>18) AND VictimSex='M'GROUP BY
+VictimDescent order by count(VictimAge) desc;
+
+
+------------------------------------
+
+Q2: Finding the date that the most crime were reported.
+NEO4J Cypher Query
+
+match (r:Report) -[Report]- > (c:Crime)
+return r.newDate as datereported,count(r.newDate)as
+number_of_crimes ,c.crimeCodeDescription as
+crime_type
+order by count(r.newDate)desc
+My SQL Query
+select new_date as datereported, count(new_date) as number of crimes,
+crime.crimecodedescription as crime_type
+from report inner join crime
+on report.crimecode=crime.crimecode
+group by new_date,crimecodedescription
+order by count(datereported) desc;
+
+
+------------------------------------------------
+
+Q3: Return the number of crimes that happened in 2010 in West area.
+NEO4J Cypher Query
+
+match (r:Report) -[report]- > (a:Area)
+Where r.newDate.year =2010 and toUpper(a.areaName) contains "WEST"
+return r.newDate.year as year,count(r.newDate.year)
+as number_of_crimes,a.areaName as areaname
+order by count(r.newDate.year ) desc
+My SQL Query
+select datereported,count(year(new_date)),areaname
+from report as r inner join area a on t.areaid=a.areaid
+where a.areaname like '%west%' and year(new_date)=2010
+group by year(new_date),areaname;
+
+
+--------------------------------------
+
+Q4: Return the number of reported crimes that their victim Descents are White ‘W’.
+NEO4J Cypher Query
+
+match (r:Report) -[report]- > (v: Victim)
+Where v.victimDescent='W'
+return r.newDate.year as year,count(r.newDate)
+as number_of_crimes
+order by count(r.newDate) desc
+My SQL Query
+select year(new_date) as year, count(year(new_date)) as number_of_crimes
+from report R
+inner join victim V on R.drnumber=V.drnumber
+where victimdescent='w’
+group by year(new_date)
+order by count(year(new_date)) desc;
+
+
+---------------------------------------
+
+Q5: Return dates and places that kidnapping occurred and the age of victim and weapons
+were used.
+NEO4J Cypher Query
+
+MATCH (node1)<-[:VICTIM]-(node2)-[:WEAPON]->(node3)
+MATCH (node4)<-[:CRIME]-(node2)-[:PREMISE]->(node5)
+WHERE toUpper(node4.crimeCodeDescription) CONTAINS "KIDNAPPING"
+AND node1.victimAge IS NOT null
+RETURN node2.newDate as Date,node1.victimAge as Age, node3.weaponDescription as
+Weapon, node5.premiseDescription as place
+order by Date
+My SQL Query
+select DateOccurred,VictimAge,WeaponDescription,PremiseDescription as 'the place that
+kidnapping occured'from total_crime as T inner join crime as C on
+T.CrimeCode=C.CrimeCodeINNER JOIN Premise as P ON P.PremiseCode=T.PremiseCode
+INNER JOIN victim as V ON T.DRNumber=V.DRNumberINNER JOIN weapon as W ON
+T.WeaponUsedCode=W.WeaponUsedCodewhere c.CrimeCodeDescription like
+'%KIDNAPPING%' order by DateOccurred ;
+
+
+----------------------------------
+
+Q6: crimes that offended in people less than 18 for years after 2014
+NEO4J Cypher Query
+MATCH (node1)<-[:VICTIM]-(node2)-[:CRIME]->(node3)
+WHERE node1.victimAge <=18 AND date(node2.newDate).
+year>=2014
+RETURN DISTINCT date(node2.newDate).year as year
+,node3.crimeCode as crimeCode
+ORDER BY year
+My SQL Query
+select year(new_date) as year_report, crimecode
+from report r
+inner join victim v on r.drnumber = v.drnumber
+where victimage <18
+group by year_report,crimecode
+having min(year_report)>=2014
+order by year(new_date), count(crimecode) desc;
+
+
+---------------------------------
+
+Q7: return the average age of victims, who are female or male but they are less than 18 for
+each year and show the type of weapon that used most for these crimes
+NEO4J Cypher Query
+MATCH (node1)<-[:VICTIM]-(node2)-[:WEAPON]->(node3)
+WHERE (node1.victimAge <18 OR node1.victimSex ="F")
+WITH date(node2.newDate).year as year,
+node1.victimSex as victimSex,
+avg(node1.victimAge) as average_age, count(node3.weaponUsedCode)as
+number_used_weapon,
+node3.weaponDescription as weapon_discription
+ORDER BY year,number_used_weapon desc
+WITH year,
+collect([victimSex,average_age,number_used_weapon,weapon_discription])[..2] as w unwind w
+as Sex_avgAge_NumberUsed_weaponDiscription
+RETURN year, Sex_avgAge_NumberUsed_weaponDiscription
+My SQL Query
+SET @ranking = 0, @prev_val = NULL;
+select *,
+@ranking:= if (@prev_val=Year_Report, @ranking+1, 1) as ranking , @prev_val :=
+Year_Report
+from
+(select year(R.new_date) as Year_Report, Avg(V.Victimage), V.VictimSex ,
+count(W.WeaponUsedCode), W.WeaponDescription
+from Victim as V
+inner join Report as R on V.DRnumber = R.Drnumber
+inner join WEAPON as W on W.WeaponUsedCode = R.WeaponUsedCode
+where (V.Victimage < 18 or V.VictimSex = 'F’)
+group by Year_Report, V.VictimSex, W.WeaponUsedCode
+order by Year_Report, count(W.WeaponDescription) desc) t
+having ranking <= 2;
+
+
+-----------------------------
+
+Q8: crimes that happen more than 500 times each year
+NEO4J Cypher Query
+MATCH (node1)<-[:CRIME]-(node2)
+WITH date(node2.newDate).year as year,node1.crimeCodeDescription as
+crimeDescription,count(*) as f
+WHERE f>500
+RETURN year,crimeDescription
+ORDER BY year desc
+My SQL Query
+select year(new_date), CrimeCodeDescription
+from Crime C join Report R on C.CrimeCode = R.CrimeCode
+group by year(R.new_date),CrimeCodeDescription
+having count(C.CrimeCodeDescription)>500 ;
+
+
+-----------------------------------
+
+Q9: return race of victims that be offended most in each area
+NEO4J Cypher Query
+MATCH (node1)<-[:VICTIM]-(node2)-[:AREA]->(node3)
+WITH node3.areaName as areaName,max(node1.victimDescent) as max_victimDesecent
+RETURN distinct areaName,max_victimDesecent
+My SQL Query
+select AreaName, max(VictimDescent)
+from area as A
+join Report as R on A.AreaID = R.AreaID
+inner join Victim as V on R.DRnumber = V.DRnumber
+group by AreaName;
