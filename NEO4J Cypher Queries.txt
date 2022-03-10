@@ -1,3 +1,5 @@
+
+
 Q1. Return the youngest male victims in each descent. Young men(less than 30 and more than 18
 years old).
 NEO4J Cypher Query
